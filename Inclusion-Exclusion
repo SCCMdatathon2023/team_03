@@ -1,0 +1,60 @@
+Inclusion criteria: (MIMIC IV dataset)
+Age &gt;/= 18 years old
+Sepsis 1 Definition (CMS)
+Acute Infection (suspected or confirmed)
+Vasopressor usage
+Sepsis 3 Definition?
+Acute Infection (suspected or confirmed)
+Vasopressor usage
+Lactate &gt; 2.0
+Source:
+- Blood
+- Pulmonary
+- Urinary
+- HAI?
+- Other
+
+Infectious type:
+- Bacterial (Gram +, Gram –)
+- Other
+- Viral (COVID-19, Influenza, Other)
+- Fungal
+
+Exclusion criteria:
+Age &lt;18
+No acute infection at admission to ICU
+Lactate &lt;/= 2.0
+
+Measurements:
+Race
+Sex
+Zipcode
+Insurance status
+
+Repeat labs (clearance of lactate?)
+Mortality
+Length of ICU stay
+Length of ventilator
+Length of hospitalization
+Repeat lactate
+Capillary refill
+Leg raise
+Central line
+POCUS?
+Amount of fluid resuscitation (over 24 hours)
+Amount of fluid resuscitation (hospitalization)
+Amount of blood given
+Pressors utilized
+Complications
+- ARDS
+- AKI
+o Dialysis
+- MI
+- VTE
+- HAI
+o CAUTI
+o CLABSI
+o VAP
+SOFA score (at admission)
+SOFA score (at discharge)
+Who has sepsis based upon Sepsis 1 v Sepsis 3
