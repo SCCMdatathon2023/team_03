@@ -1,0 +1,474 @@
+---
+title: "Sepsis and Lactate Health Disparity"
+author: "Justin Quion, Anamik Jhunjhunwala, Andrew Bonney, Pratiksha Pradhan, Neel Vahil, Suresh Agarwal, Teresa A. Rincon"
+date: "2023-08-05"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r setup, include=FALSE}
+library(scales)
+library(tidyr)
+library(dplyr)
+library(knitr)
+require(ggthemes)
+library(ggplot2)
+library(tidyverse)  
+library(gridExtra)
+library("scatterplot3d")
+library(outliers)
+library(reshape2)
+library(lubridate)
+library(plotly)
+library(qcc)
+library(rpart)
+library(randomForest)
+library(rpart.plot)
+library("outliers")
+library(EnvStats)
+library(car)
+library(tidyverse)
+library(rpart)
+library(randomForest)
+library(rsample)
+library(recipes)
+library(car)
+library(censReg)
+library(caret)
+library(syuzhet)
+library(readxl)
+library(sentimentr)
+library(tidytext)
+library(topicmodels)
+library(tm)
+library(MASS)
+library(survival)
+library(DataExplorer)
+library(plyr)                                                 
+library(readr)
+library(data.table)
+# library(regclass)
+# library(FrF2)
+```
+
+
+# Part I - Importing and cleaning the data
+
+```{r}
+# Importing the data
+mydata <- read_csv("SCCM_cohort.csv")
+subset_data <- mydata[complete.cases(mydata[["lactate_freq_day1"]]), ]
+head(subset_data)
+summary(subset_data)
+```
+
+
+```{r}
+#Checking the categorical variables to make sure that they are consistent
+unique(subset_data$gender)
+unique(subset_data$race_group)
+unique(subset_data$language)
+unique(subset_data$insurance)
+```
+
+
+# Part II - Exploratory Data Analysis
+
+
+Single variable data exploration -- 
+```{r}
+#Histogram and density plot of Charges
+ggplot(data = subset_data, aes(x = admission_age)) + 
+geom_histogram(aes(y=..density..), colour="black", fill="white") + 
+stat_density(alpha=.2, fill="#FF0000") + 
+geom_vline(aes(xintercept=mean(admission_age)), color="blue", linetype="dashed", size=1)
+
+#Histogram and density plot of bmi
+par(mfrow=c(1,2))
+ggplot(data = subset_data, aes(x = weight_admit)) + 
+geom_histogram(aes(y=..density..), colour="black", fill="white") + 
+stat_density(alpha=.2, fill="#0000FF")+ 
+geom_vline(aes(xintercept=mean(weight_admit)), color="blue", linetype="dashed", size=1)
+
+
+#Histogram and density plot of age
+par(mfrow=c(1,2))
+ggplot(data = subset_data, aes(x = charlson_comorbidity_index)) + 
+geom_histogram(aes(y=..density..), colour="black", fill="white") + 
+stat_density(alpha=.2, fill="#FFFF00")+ 
+geom_vline(aes(xintercept=mean(charlson_comorbidity_index)), color="blue", linetype="dashed", size=1)
+
+#Histogram and density plot of children
+par(mfrow=c(1,2))
+ggplot(data = subset_data, aes(x = SOFA)) + 
+geom_histogram(aes(y=..density..), colour="black", fill="white") + 
+stat_density(alpha=.2, fill="#556B2F")+ 
+geom_vline(aes(xintercept=mean(SOFA)), color="blue", linetype="dashed", size=1)
+```
+
+
+```{r}
+
+# Assuming you have a dataframe named 'data'
+column_name <- "lactate_freq_day1" # Name of the column with missing values
+
+# Subset the dataframe to include only rows with missing values in the specified column
+missing_rows <- mydata[is.na(mydata$lactate_freq_day1),]
+value_counts <- table(missing_rows [["race_group"]])
+value_counts2 <- table(mydata[["race_group"]])
+print(value_counts)
+print(value_counts2)
+
+percent_VC <- value_counts/value_counts2
+print(percent_VC)
+
+categories <- unique(subset_data$race_group)
+values <- percent_VC
+barplot(values, names.arg = categories, xlab = "Categories", ylab = "Values", main = "Simple Bar Graph")
+
+# Create two example vectors
+vector1 <- percent_VC
+vector2 <- subset_data$race_group
+
+# Create a dataframe with two vectors
+my_dataframe <- as.data.frame(percent_VC)
+
+
+ggplot(my_dataframe, aes(x = Var1, y = Freq, fill = categories)) +
+  geom_bar(stat = "identity", color = "black", alpha = 0.8) +
+  labs(x = "Racial Background", y = "Lactate Measurements not performed") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  ) +
+  scale_fill_manual(values = c("#66c2a5", "#fc8d62", "#8da0cb",  "#390a28", "#49b4da"))
+```
+
+
+
+
+
+Univariate data exploration -- 
+```{r}
+ggplot(subset_data, aes(x=gender, y = lactate_freq_day1, color=gender)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+
+ggplot(subset_data, aes(x=race_group, y=lactate_freq_day1, color=race_group)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(subset_data, aes(x=language, y=lactate_freq_day1, color=language)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(subset_data, aes(x=insurance, y=lactate_freq_day1, color=insurance)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+```
+
+
+
+Multivaraite data exploration
+By gender
+```{r}
+# ggplot(mydata, aes(x=gender, y=lactate_freq_day1, , color=gender)) + 
+#   geom_boxplot(notch=TRUE) +
+#   stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+#   geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=race_group, y=lactate_freq_day1, , color=gender)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=language, y=lactate_freq_day1, , color=gender)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=insurance, y=lactate_freq_day1, , color=gender)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+```
+
+Multivariate data exploration
+By race group
+```{r}
+ggplot(mydata, aes(x=gender, y=lactate_freq_day1, , color=race_group)) +
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) +
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+# ggplot(mydata, aes(x=race_group, y=lactate_freq_day1, , color=race group)) + 
+#   geom_boxplot(notch=TRUE) +
+#   stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+#   geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=language, y=lactate_freq_day1, , color=race_group)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=insurance, y=lactate_freq_day1, , color=race_group)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+```
+
+
+Multivaraite data exploration
+By language
+```{r}
+ggplot(mydata, aes(x=gender, y=lactate_freq_day1, , color=language)) +
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) +
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=race_group, y=lactate_freq_day1, , color=language)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+# ggplot(mydata, aes(x=language, y=lactate_freq_day1, , color=language)) + 
+#   geom_boxplot(notch=TRUE) +
+#   stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+#   geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=insurance, y=lactate_freq_day1, , color=language)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+```
+
+Multivaraite data exploration
+By insurance
+```{r}
+ggplot(mydata, aes(x=gender, y=lactate_freq_day1, , color=insurance)) +
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) +
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=race_group, y=lactate_freq_day1, , color=insurance)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+ggplot(mydata, aes(x=language, y=lactate_freq_day1, , color=insurance)) + 
+  geom_boxplot(notch=TRUE) +
+  stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+# ggplot(mydata, aes(x=insurance, y=lactate_freq_day1, , color=insurance)) + 
+#   geom_boxplot(notch=TRUE) +
+#   stat_summary(fun=mean, geom="point", shape=23, size=4) + 
+#   geom_jitter(shape=16, position=position_jitter(0.2))
+
+```
+
+Multivariate data exploration
+By race group
+```{r}
+ggplot(subset_data, aes(x=admission_age, y=lactate_freq_day1, color=race_group, shape=race_group)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=weight_admit, y=lactate_freq_day1, color=race_group, shape=race_group)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=prob_mort, y=lactate_freq_day1, color=race_group, shape=race_group)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+```
+
+
+Multivariate data exploration
+By language
+```{r}
+ggplot(subset_data, aes(x=admission_age, y=lactate_freq_day1, color=language, shape=language)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=weight_admit, y=lactate_freq_day1, color=language, shape=language)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=prob_mort, y=lactate_freq_day1, color=language, shape=language)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+```
+
+
+Multivariate data exploration
+By gender
+```{r}
+ggplot(subset_data, aes(x=admission_age, y=lactate_freq_day1, color=gender, shape=gender)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=weight_admit, y=lactate_freq_day1, color=gender, shape=gender)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=prob_mort, y=lactate_freq_day1, color=gender, shape=gender)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+```
+
+
+Multivariate data exploration
+By insurance
+```{r}
+ggplot(subset_data, aes(x=admission_age, y=lactate_freq_day1, color=insurance, shape=insurance)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=weight_admit, y=lactate_freq_day1, color=insurance, shape=insurance)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+
+ggplot(subset_data, aes(x=prob_mort, y=lactate_freq_day1, color=insurance, shape=insurance)) +
+  geom_smooth(method=lm) + 
+  geom_density_2d()
+```
+
+
+# Questions to explore
+
+# Part III - Building the Linear regression model
+```{r}
+model <- lm(lactate_freq_day1 ~ admission_age + gender + race_group + language + weight_admit + insurance + SOFA + charlson_comorbidity_index, data = subset_data)
+summary(model)
+sigma(model)
+
+plot(model)
+```
+ #Trying an Elastic Net Linear Regression Model
+ 
+```{r}
+# Assuming you have a dataframe named 'data'
+selected_columns_A <- c("admission_age","gender","race_group","language","weight_admit","insurance","SOFA","charlson_comorbidity_index")  # Names of columns to convert
+
+selected_columns_B <- c("admission_age","gender","race_group","language","weight_admit","insurance","adm_type","SOFA","charlson_comorbidity_index")  # Names of columns to convert
+
+selected_columns_C <- c("admission_age","gender","race_group","language","weight_admit","insurance","adm_type","SOFA","charlson_comorbidity_index")  # Names of columns to convert
+
+selected_columns_D <- c("admission_age","gender","race_group","language","weight_admit","insurance","adm_type","SOFA","charlson_comorbidity_index")  # Names of columns to convert
+
+
+```
+ 
+
+# ```{r}
+# model <- lm(lactate_freq_day1 ~ admission_age + gender + race + language + weight_admit + insurance + adm_type + SOFA + charlson_comorbidity_index, data = mydata)
+# summary(model)
+# sigma(model)
+# ```
+
+
+```{r}
+subset_data <- mydata[complete.cases(mydata[["lactate_freq_day1"]]), ]
+selected_data <- subset_data[selected_columns]
+
+selected_data <- selected_data %>%
+  mutate(across(c("admission_age","gender","race_group","language","weight_admit","insurance","SOFA","charlson_comorbidity_index")), ~ as.factor(.)) %>%
+  mutate(across(c("admission_age","gender","race_group","language","weight_admit","insurance","SOFA","charlson_comorbidity_index"), ~ as.numeric(.)))  # Convert to numeric (0 or 1)
+```
+
+```{r}
+library(dplyr)
+library(glmnet)
+
+# Convert selected columns to a matrix
+X <- selected_data %>%
+  as.matrix()
+
+y <- subset_data$lactate_freq_day1 %>%
+  as.matrix()
+
+y <- as.matrix(subset_data$lactate_freq_day1)
+elastic_net_model <- cv.glmnet(selected_matrix, y , alpha = 0.5)  # 0.5 represents a balance between L1 and L2 penalties
+
+# Print the model summary
+print(elastic_net_model)
+```
+
+
+```{r}
+model <- lm(lactate_day1 ~ admission_age + gender + race_group + language + weight_admit + insurance + adm_type + SOFA + charlson_comorbidity_index, data = mydata)
+summary(model)
+sigma(model)
+```
+
+
+
+```{r}
+model <- lm(lactate_freq_day1 ~ admission_age + gender + race_group + language + weight_admit + insurance + adm_type + SOFA + charlson_comorbidity_index + resp_rate_mean +	mbp_mean +	heart_rate_mean +	temperature_mean +	spo2_mean, data = mydata)
+summary(model)
+sigma(model)
+
+# resp_rate_mean	mbp_mean	heart_rate_mean	temperature_mean	spo2_mean
+
+```
+
+
+
+
+
+```{r}
+model <- lm(lactate_freq_day1 ~ weight_admit + insurance + SOFA + charlson_comorbidity_index + resp_rate_mean +	mbp_mean +	heart_rate_mean +	temperature_mean +	spo2_mean, data = mydata)
+summary(model)
+sigma(model)
+
+# resp_rate_mean	mbp_mean	heart_rate_mean	temperature_mean	spo2_mean
+
+```
+
+
+
+```{r}
+model <- lm(lactate_day1 ~ weight_admit + insurance + SOFA + charlson_comorbidity_index + resp_rate_mean +	mbp_mean +	heart_rate_mean +	temperature_mean +	spo2_mean, data = mydata)
+summary(model)
+sigma(model)
+
+```
+
+
+```{r}
+model <- glm(mech_vent_overall ~ admission_age + gender + race_group + language + weight_admit + insurance + adm_type + SOFA + charlson_comorbidity_index + resp_rate_mean +	mbp_mean +	heart_rate_mean +	temperature_mean +	spo2_mean, data = mydata)
+summary(model)
+sigma(model)
+```
+
+
+```{r}
+model <- glm(rrt_overall ~ admission_age + gender + race_group + language + weight_admit + insurance + adm_type + SOFA + charlson_comorbidity_index + resp_rate_mean +	mbp_mean +	heart_rate_mean +	temperature_mean +	spo2_mean, data = mydata)
+summary(model)
+sigma(model)
+```
+
+
+```{r}
+model <- glm(vasopressor_overall ~ admission_age + gender + race_group + language + weight_admit + insurance + adm_type + SOFA + charlson_comorbidity_index + resp_rate_mean +	mbp_mean +	heart_rate_mean +	temperature_mean +	spo2_mean, data = mydata)
+summary(model)
+sigma(model)
+```
+
+
+
+
